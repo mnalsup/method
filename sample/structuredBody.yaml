@@ -1,0 +1,8 @@
+url: https://httpbin.org/anything
+headers:
+  Content-Type: "application/json"
+method: POST
+body:
+  foo: bar
+  baz:
+    buz: bux

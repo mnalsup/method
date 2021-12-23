@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -29,7 +30,8 @@ type RequestDefinition struct {
 	URL               string             `yaml:"url"`
 	Headers           map[string]string  `yaml:"headers"`
 	AuthorizationHook *AuthorizationHook `yaml:"authorizationHook"`
-	Body              string             `yaml:"body"`
+	BodyStr           string             `yaml:"bodyStr"`
+	Body              interface{}        `yaml:"body"`
 }
 
 func contains(elems []int, v int) bool {
@@ -47,12 +49,12 @@ func main() {
 	fileName := args[0]
 	definition, err := readRequestDefinition(fileName)
 	if err != nil {
-		panic(err)
+		panic(err.Error())
 	}
 
 	body, resp, err := DoMethod(definition)
 	if err != nil {
-		panic(err)
+		panic(err.Error())
 	}
 
 	fmt.Printf("%s", resp.Status)
@@ -62,7 +64,7 @@ func main() {
 		var obj map[string]interface{}
 		err := json.Unmarshal(body, &obj)
 		if err != nil {
-			panic(err)
+			panic(err.Error())
 		}
 		pretty, err := json.MarshalIndent(obj, "", "  ")
 		fmt.Println(string(pretty))
@@ -168,6 +170,24 @@ func DoMethod(definition *RequestDefinition) ([]byte, *http.Response, error) {
 
 }
 
+// Used to take in an unstructured yaml body and convert it into a nested set of
+// maps with string keys
+func convert(i interface{}) interface{} {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		m2 := map[string]interface{}{}
+		for k, v := range x {
+			m2[k.(string)] = convert(v)
+		}
+		return m2
+	case []interface{}:
+		for i, v := range x {
+			x[i] = convert(v)
+		}
+	}
+	return i
+}
+
 func DoRequest(definition *RequestDefinition) ([]byte, *http.Response, error) {
 	var req *http.Request
 
@@ -177,18 +197,38 @@ func DoRequest(definition *RequestDefinition) ([]byte, *http.Response, error) {
 		return nil, nil, err
 	}
 
-	if definition.Body == "" {
-		req, err = http.NewRequest(
-			definition.Method,
-			reqUrl.String(),
-			nil,
-		)
+	if definition.Body != nil {
+		if definition.Headers["Content-Type"] == "application/json" {
+			body := convert(definition.Body)
+			rawBody, err := json.Marshal(body)
+			if err != nil {
+				panic(fmt.Errorf("unable to marshal definition.Body into json: %v", err))
+			}
+			req, err = http.NewRequest(
+				definition.Method,
+				reqUrl.String(),
+				bytes.NewReader(rawBody),
+			)
+			if err != nil {
+				panic(fmt.Sprintf("unable to create new reququest: %v", err))
+			}
+		} else {
+			panic(fmt.Sprintf("No request body parser available for %s", definition.Headers["Content-Type"]))
+		}
 	} else {
-		req, err = http.NewRequest(
-			definition.Method,
-			reqUrl.String(),
-			strings.NewReader(definition.Body),
-		)
+		if definition.BodyStr == "" {
+			req, err = http.NewRequest(
+				definition.Method,
+				reqUrl.String(),
+				nil,
+			)
+		} else {
+			req, err = http.NewRequest(
+				definition.Method,
+				reqUrl.String(),
+				strings.NewReader(definition.BodyStr),
+			)
+		}
 	}
 	if err != nil {
 		return nil, nil, err
