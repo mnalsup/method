@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Jeffail/gabs/v2"
 	"gopkg.in/yaml.v2"
@@ -34,6 +35,12 @@ type RequestDefinition struct {
 	Body              interface{}        `yaml:"body"`
 }
 
+type RequestResult struct {
+	Body     []byte
+	Response *http.Response
+	Elapsed  time.Duration
+}
+
 func contains(elems []int, v int) bool {
 	for _, s := range elems {
 		if v == s {
@@ -52,33 +59,35 @@ func main() {
 		panic(err.Error())
 	}
 
-	body, resp, err := DoMethod(definition)
+	result, err := DoMethod(definition)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	fmt.Printf("%s", resp.Status)
-	contentType := resp.Header.Get("Content-Type")
+	printRequestResult(result)
+}
 
-	if strings.Contains(contentType, "application/json") {
+func printRequestResult(result *RequestResult) {
+	fmt.Printf("%s", result.Response.Status)
+	contentType := result.Response.Header.Get("Content-Type")
+	switch true {
+	case strings.Contains(contentType, "application/json"):
 		var obj map[string]interface{}
-		err := json.Unmarshal(body, &obj)
+		err := json.Unmarshal(result.Body, &obj)
 		if err != nil {
 			panic(err.Error())
 		}
 		pretty, err := json.MarshalIndent(obj, "", "  ")
 		fmt.Println(string(pretty))
-		return
+	case strings.Contains(contentType, "text/html"):
+		fmt.Println(string(result.Body))
+	case strings.Contains(contentType, "text/plain"):
+		fmt.Println(string(result.Body))
+	default:
+		panic(fmt.Sprintf("Unable to decode content-type: %s", contentType))
 	}
-	if strings.Contains(contentType, "text/html") {
-		fmt.Println(string(body))
-		return
-	}
-	if strings.Contains(contentType, "text/plain") {
-		fmt.Println(string(body))
-		return
-	}
-	panic(fmt.Sprintf("Unable to decode content-type: %s", contentType))
+
+	fmt.Printf("Duration: %v\n", result.Elapsed)
 }
 
 func readRequestDefinition(fileName string) (*RequestDefinition, error) {
@@ -96,7 +105,6 @@ func readRequestDefinition(fileName string) (*RequestDefinition, error) {
 }
 
 func validateAuthorizationHook(responseStatus int, definition *RequestDefinition) bool {
-	fmt.Println(responseStatus)
 	if definition.AuthorizationHook != nil &&
 		definition.AuthorizationHook.RequestPath != "" &&
 		contains(definition.AuthorizationHook.OnHttpStatus, responseStatus) {
@@ -105,37 +113,34 @@ func validateAuthorizationHook(responseStatus int, definition *RequestDefinition
 	return false
 }
 
-func runAuthorizationHook(definition *RequestDefinition) ([]byte, *http.Response, error) {
+func runAuthorizationHook(definition *RequestDefinition) (*RequestResult, error) {
 	authHook := definition.AuthorizationHook
 	authDefinition, err := readRequestDefinition(authHook.RequestPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	authBody, authResp, err := DoRequest(authDefinition)
+	authResult, err := DoRequest(authDefinition)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	switch authHook.AuthType {
 	case AUTH_TYPE_BEARER_TOKEN:
-		if authHook.JsonParseBodyPath != "" && strings.Contains(authResp.Header.Get("Content-Type"), "application/json") {
-			err = decorateWithBearerTokenFromJson(definition, authBody, authHook.JsonParseBodyPath)
+		if authHook.JsonParseBodyPath != "" && strings.Contains(authResult.Response.Header.Get("Content-Type"), "application/json") {
+			err = decorateWithBearerTokenFromJson(definition, authResult.Body, authHook.JsonParseBodyPath)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 		} else {
-			return nil, nil, fmt.Errorf("unknown authorization hook request parsing strategy")
+			return nil, fmt.Errorf("unknown authorization hook request parsing strategy")
 		}
 	default:
-		return nil, nil, fmt.Errorf("unknown authtype: %s", authHook.AuthType)
+		return nil, fmt.Errorf("unknown authtype: %s", authHook.AuthType)
 	}
-	for k, v := range definition.Headers {
-		fmt.Printf("%s: %s\n", k, v)
-	}
-	body, resp, err := DoRequest(definition)
+	result, err := DoRequest(definition)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return body, resp, nil
+	return result, nil
 }
 
 func decorateWithBearerTokenFromJson(definition *RequestDefinition, body []byte, jsonPath string) error {
@@ -154,19 +159,18 @@ func decorateWithBearerTokenFromJson(definition *RequestDefinition, body []byte,
 	return nil
 }
 
-func DoMethod(definition *RequestDefinition) ([]byte, *http.Response, error) {
-	body, resp, err := DoRequest(definition)
+func DoMethod(definition *RequestDefinition) (*RequestResult, error) {
+	result, err := DoRequest(definition)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	if resp != nil {
-		if validateAuthorizationHook(resp.StatusCode, definition) {
-			fmt.Println("Validated Authorization Hook")
+	if result.Response != nil {
+		if validateAuthorizationHook(result.Response.StatusCode, definition) {
 			return runAuthorizationHook(definition)
 		}
 	}
 
-	return body, resp, nil
+	return result, nil
 
 }
 
@@ -188,13 +192,13 @@ func convert(i interface{}) interface{} {
 	return i
 }
 
-func DoRequest(definition *RequestDefinition) ([]byte, *http.Response, error) {
+func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 	var req *http.Request
 
 	client := &http.Client{}
 	reqUrl, err := url.Parse(definition.URL)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if definition.Body != nil {
@@ -231,23 +235,32 @@ func DoRequest(definition *RequestDefinition) ([]byte, *http.Response, error) {
 		}
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	for k, v := range definition.Headers {
-		fmt.Printf("adding header %s: %s\n", k, v)
 		req.Header.Add(k, v)
 	}
 
+	var result *RequestResult
+
+	start := time.Now()
 	resp, err := client.Do(req)
+	elapsed := time.Since(start)
+	result = &RequestResult{
+		Elapsed:  elapsed,
+		Response: resp,
+		Body:     nil,
+	}
 	if err != nil {
-		return nil, resp, err
+		return result, err
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, nil, err
+		return result, err
 	}
 	resp.Body.Close()
 	resp.Body = nil
+	result.Body = body
 
-	return body, resp, nil
+	return result, nil
 }
