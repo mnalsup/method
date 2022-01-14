@@ -6,3 +6,6 @@ body:
   foo: bar
   baz:
     buz: bux
+  bool: true
+  num: 4
+  float: 5.4

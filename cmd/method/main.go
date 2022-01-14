@@ -202,7 +202,8 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 	}
 
 	if definition.Body != nil {
-		if definition.Headers["Content-Type"] == "application/json" {
+		switch definition.Headers["Content-Type"] {
+		case "application/json":
 			body := convert(definition.Body)
 			rawBody, err := json.Marshal(body)
 			if err != nil {
@@ -216,7 +217,23 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 			if err != nil {
 				panic(fmt.Sprintf("unable to create new reququest: %v", err))
 			}
-		} else {
+		case "application/x-www-form-urlencoded":
+			body := convert(definition.Body)
+			data := url.Values{}
+			switch bt := body.(type) {
+			case map[string]interface{}:
+				for k, v := range body.(map[string]interface{}) {
+					data.Add(k, fmt.Sprintf("%v", v))
+				}
+			default:
+				panic(fmt.Sprintf("unable to convert type %v to application/x-www-form-urlencoded data", bt))
+			}
+			req, err = http.NewRequest(
+				definition.Method,
+				reqUrl.String(),
+				strings.NewReader(data.Encode()),
+			)
+		default:
 			panic(fmt.Sprintf("No request body parser available for %s", definition.Headers["Content-Type"]))
 		}
 	} else {
