@@ -60,7 +60,7 @@ func contains(elems []int, v int) bool {
 }
 
 func PrintRequestResult(result *RequestResult) {
-	fmt.Printf("%s", result.Response.Status)
+	fmt.Printf("%s\n", result.Response.Status)
 	contentType := result.Response.Header.Get("Content-Type")
 	switch true {
 	case strings.Contains(contentType, "application/json"):

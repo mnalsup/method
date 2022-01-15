@@ -1,8 +1,9 @@
 url: https://httpbin.org/bearer
 method: GET
 authorizationHook:
-  onHttpStatus:
-    - 401
+  triggers:
+    - onHttpStatus:
+      - 401
   requestPath: /Users/malsup/Development/go/src/github.com/mnalsup/method/sample/auth.yaml 
   jsonParseBodyPath: "slideshow.slides.0.type"
   authType: "BearerToken"
