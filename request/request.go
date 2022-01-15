@@ -133,6 +133,7 @@ func validateAuthorizationHook(result *RequestResult, definition *RequestDefinit
  *
  */
 func runAuthorizationHook(definition *RequestDefinition) error {
+	fmt.Println("Running authorization hook...")
 	authHook := definition.AuthorizationHook
 	authDefinition, err := ReadRequestDefinition(authHook.RequestPath)
 	if err != nil {

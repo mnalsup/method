@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -14,11 +13,13 @@ func main() {
 	args := os.Args[1:]
 
 	fileName := args[0]
-	fmt.Println(fileName)
-	fmt.Println(cache.GetTempFileName(fileName))
 	definition, err := request.ReadRequestDefinition(fileName)
 	if err != nil {
 		panic(err.Error())
+	}
+	cachedDefinition, err := request.ReadRequestDefinition(cache.GetTempFileName(fileName))
+	if err == nil {
+		cache.MergeTempFileDefinition(definition, cachedDefinition)
 	}
 
 	result, err := request.DoMethod(definition)
