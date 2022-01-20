@@ -1,6 +1,6 @@
 url: https://httpbin.org/bearer
 method: GET
-authorizationHook:
+authenticationHook:
   triggers:
     - onHttpStatus:
       - 401

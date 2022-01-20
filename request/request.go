@@ -19,16 +19,16 @@ const (
 	AUTH_TYPE_BEARER_TOKEN = "BearerToken"
 )
 
-type AuthorizationTrigger struct {
+type AuthenticationTrigger struct {
 	OnHttpStatus []int        `yaml:"onHttpStatus"`
 	OnJsonValue  *OnJsonValue `yaml:"onJsonValue"`
 }
 
-type AuthorizationHook struct {
-	Triggers          []AuthorizationTrigger `yaml:"triggers"`
-	RequestPath       string                 `yaml:"requestPath"`
-	JsonParseBodyPath string                 `yaml:"jsonParseBodyPath"`
-	AuthType          string                 `yaml:"authType"`
+type AuthenticationHook struct {
+	Triggers          []AuthenticationTrigger `yaml:"triggers"`
+	RequestPath       string                  `yaml:"requestPath"`
+	JsonParseBodyPath string                  `yaml:"jsonParseBodyPath"`
+	AuthType          string                  `yaml:"authType"`
 }
 
 type OnJsonValue struct {
@@ -37,12 +37,12 @@ type OnJsonValue struct {
 }
 
 type RequestDefinition struct {
-	Method            string             `yaml:"method"`
-	URL               string             `yaml:"url"`
-	Headers           map[string]string  `yaml:"headers"`
-	AuthorizationHook *AuthorizationHook `yaml:"authorizationHook"`
-	BodyStr           string             `yaml:"bodyStr"`
-	Body              interface{}        `yaml:"body"`
+	Method             string              `yaml:"method"`
+	URL                string              `yaml:"url"`
+	Headers            map[string]string   `yaml:"headers"`
+	AuthenticationHook *AuthenticationHook `yaml:"authorizationHook"`
+	BodyStr            string              `yaml:"bodyStr"`
+	Body               interface{}         `yaml:"body"`
 }
 
 type RequestResult struct {
@@ -108,14 +108,14 @@ func ReadRequestDefinition(fileName string) (*RequestDefinition, error) {
 
 }
 
-func validateAuthorizationHook(result *RequestResult, definition *RequestDefinition) (bool, error) {
-	if definition.AuthorizationHook == nil {
+func validateAuthenticationHook(result *RequestResult, definition *RequestDefinition) (bool, error) {
+	if definition.AuthenticationHook == nil {
 		return false, nil
 	}
-	if definition.AuthorizationHook.RequestPath == "" {
+	if definition.AuthenticationHook.RequestPath == "" {
 		return false, fmt.Errorf("unable to run authorization hook for empty request")
 	}
-	for _, v := range definition.AuthorizationHook.Triggers {
+	for _, v := range definition.AuthenticationHook.Triggers {
 		// Check if configured
 
 		// check if HTTP status mateches the hook
@@ -144,12 +144,12 @@ func validateAuthorizationHook(result *RequestResult, definition *RequestDefinit
 }
 
 /**
- * runAuthorizationHook
+ * runAuthenticationHook
  *
  */
-func runAuthorizationHook(definition *RequestDefinition) error {
+func runAuthenticationHook(definition *RequestDefinition) error {
 	fmt.Println("Running authorization hook...")
-	authHook := definition.AuthorizationHook
+	authHook := definition.AuthenticationHook
 	authDefinition, err := ReadRequestDefinition(authHook.RequestPath)
 	if err != nil {
 		return err
@@ -185,11 +185,11 @@ func decorateWithBearerTokenFromJson(definition *RequestDefinition, body []byte,
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal auth hook body: %v", err.Error())
 	}
-	token, ok := jsonBody.Path(definition.AuthorizationHook.JsonParseBodyPath).Data().(string)
+	token, ok := jsonBody.Path(definition.AuthenticationHook.JsonParseBodyPath).Data().(string)
 	if !ok {
-		return fmt.Errorf("unable to retrieve token by path %s", definition.AuthorizationHook.JsonParseBodyPath)
+		return fmt.Errorf("unable to retrieve token by path %s", definition.AuthenticationHook.JsonParseBodyPath)
 	}
-	definition.Headers["Authorization"] = fmt.Sprintf("Bearer %s", token)
+	definition.Headers["Authentication"] = fmt.Sprintf("Bearer %s", token)
 	return nil
 }
 
@@ -198,12 +198,12 @@ func DoMethod(definition *RequestDefinition) (*RequestResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	shouldTryAuthorize, err := validateAuthorizationHook(result, definition)
+	shouldTryAuthorize, err := validateAuthenticationHook(result, definition)
 	if err != nil {
 		return nil, fmt.Errorf("unable to validate authorization hook: %s", err.Error())
 	}
 	if shouldTryAuthorize {
-		runAuthorizationHook(definition)
+		runAuthenticationHook(definition)
 		result, err := DoRequest(definition)
 		if err != nil {
 			PrintRequestResult(result)
