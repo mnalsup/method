@@ -40,7 +40,7 @@ type RequestDefinition struct {
 	Method             string              `yaml:"method"`
 	URL                string              `yaml:"url"`
 	Headers            map[string]string   `yaml:"headers"`
-	AuthenticationHook *AuthenticationHook `yaml:"authorizationHook"`
+	AuthenticationHook *AuthenticationHook `yaml:"authenticationHook"`
 	BodyStr            string              `yaml:"bodyStr"`
 	Body               interface{}         `yaml:"body"`
 }
@@ -61,9 +61,9 @@ func contains(elems []int, v int) bool {
 }
 
 func PrintRequestResult(result *RequestResult) {
+	fmt.Println("--------------------Results--------------------")
 	fmt.Printf("%s\n", result.Response.Status)
 
-	fmt.Println("")
 	for k, v := range result.Response.Header {
 		fmt.Printf("%s: %s\n", k, v)
 	}
@@ -88,6 +88,7 @@ func PrintRequestResult(result *RequestResult) {
 	}
 
 	fmt.Printf("Duration: %v\n", result.Elapsed)
+	fmt.Println("-----------------------------------------------")
 }
 
 func ReadRequestDefinition(fileName string) (*RequestDefinition, error) {
@@ -113,7 +114,7 @@ func validateAuthenticationHook(result *RequestResult, definition *RequestDefini
 		return false, nil
 	}
 	if definition.AuthenticationHook.RequestPath == "" {
-		return false, fmt.Errorf("unable to run authorization hook for empty request")
+		return false, fmt.Errorf("unable to run authentication hook for empty request")
 	}
 	for _, v := range definition.AuthenticationHook.Triggers {
 		// Check if configured
@@ -148,7 +149,7 @@ func validateAuthenticationHook(result *RequestResult, definition *RequestDefini
  *
  */
 func runAuthenticationHook(definition *RequestDefinition) error {
-	fmt.Println("Running authorization hook...")
+	fmt.Println("Running authentication hook...")
 	authHook := definition.AuthenticationHook
 	authDefinition, err := ReadRequestDefinition(authHook.RequestPath)
 	if err != nil {
@@ -158,6 +159,7 @@ func runAuthenticationHook(definition *RequestDefinition) error {
 	if err != nil {
 		return err
 	}
+	PrintRequestResult(authResult)
 	if authResult.Response.StatusCode > 399 {
 		return fmt.Errorf("failed to retrieve credentials: %v", authResult.Response.Status)
 	}
@@ -169,7 +171,7 @@ func runAuthenticationHook(definition *RequestDefinition) error {
 				return err
 			}
 		} else {
-			return fmt.Errorf("unknown authorization hook request parsing strategy")
+			return fmt.Errorf("unknown authentication hook request parsing strategy")
 		}
 	default:
 		return fmt.Errorf("unknown authtype: %s", authHook.AuthType)
@@ -189,7 +191,7 @@ func decorateWithBearerTokenFromJson(definition *RequestDefinition, body []byte,
 	if !ok {
 		return fmt.Errorf("unable to retrieve token by path %s", definition.AuthenticationHook.JsonParseBodyPath)
 	}
-	definition.Headers["Authentication"] = fmt.Sprintf("Bearer %s", token)
+	definition.Headers["Authorization"] = fmt.Sprintf("Bearer %s", token)
 	return nil
 }
 
@@ -200,7 +202,7 @@ func DoMethod(definition *RequestDefinition) (*RequestResult, error) {
 	}
 	shouldTryAuthorize, err := validateAuthenticationHook(result, definition)
 	if err != nil {
-		return nil, fmt.Errorf("unable to validate authorization hook: %s", err.Error())
+		return nil, fmt.Errorf("unable to validate authentication hook: %s", err.Error())
 	}
 	if shouldTryAuthorize {
 		runAuthenticationHook(definition)
