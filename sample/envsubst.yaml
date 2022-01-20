@@ -1,0 +1,2 @@
+url: ${METHOD_HTTP_BIN_ORIGIN}/json
+method: GET

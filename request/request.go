@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Jeffail/gabs/v2"
+	"github.com/drone/envsubst"
 	"gopkg.in/yaml.v2"
 )
 
@@ -61,6 +62,13 @@ func contains(elems []int, v int) bool {
 
 func PrintRequestResult(result *RequestResult) {
 	fmt.Printf("%s\n", result.Response.Status)
+
+	fmt.Println("")
+	for k, v := range result.Response.Header {
+		fmt.Printf("%s: %s\n", k, v)
+	}
+
+	fmt.Println("")
 	contentType := result.Response.Header.Get("Content-Type")
 	switch true {
 	case strings.Contains(contentType, "application/json"):
@@ -87,8 +95,12 @@ func ReadRequestDefinition(fileName string) (*RequestDefinition, error) {
 	if err != nil {
 		return nil, err
 	}
+	subst, err := envsubst.EvalEnv(string(file))
+	if err != nil {
+		return nil, err
+	}
 	var request *RequestDefinition
-	err = yaml.Unmarshal(file, &request)
+	err = yaml.Unmarshal([]byte(subst), &request)
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +109,9 @@ func ReadRequestDefinition(fileName string) (*RequestDefinition, error) {
 }
 
 func validateAuthorizationHook(result *RequestResult, definition *RequestDefinition) (bool, error) {
+	if definition.AuthorizationHook == nil {
+		return false, nil
+	}
 	if definition.AuthorizationHook.RequestPath == "" {
 		return false, fmt.Errorf("unable to run authorization hook for empty request")
 	}
@@ -142,6 +157,9 @@ func runAuthorizationHook(definition *RequestDefinition) error {
 	authResult, err := DoRequest(authDefinition)
 	if err != nil {
 		return err
+	}
+	if authResult.Response.StatusCode > 399 {
+		return fmt.Errorf("failed to retrieve credentials: %v", authResult.Response.Status)
 	}
 	switch authHook.AuthType {
 	case AUTH_TYPE_BEARER_TOKEN:
