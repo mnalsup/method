@@ -1,7 +1,0 @@
-method: GET
-url: https://httpbin.org/bearer
-headers:
-  Authorization: Bearer all
-authorizationHook: null
-bodyStr: ""
-body: null

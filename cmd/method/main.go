@@ -3,21 +3,21 @@ package main
 import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"os"
 
+	"github.com/mnalsup/method/args"
 	"github.com/mnalsup/method/cache"
 	"github.com/mnalsup/method/request"
 )
 
 func main() {
-	args := os.Args[1:]
+	var definition, cachedDefinition *request.RequestDefinition = &request.RequestDefinition{}, &request.RequestDefinition{}
+	fileName := args.ReadRequestFileName()
 
-	fileName := args[0]
-	definition, err := request.ReadRequestDefinition(fileName)
+	err := request.ReadRequestDefinition(fileName, definition)
 	if err != nil {
 		panic(err.Error())
 	}
-	cachedDefinition, err := request.ReadRequestDefinition(cache.GetTempFileName(fileName))
+	err = request.ReadRequestDefinition(cache.GetTempFileName(fileName), cachedDefinition)
 	if err == nil {
 		cache.MergeTempFileDefinition(definition, cachedDefinition)
 	}

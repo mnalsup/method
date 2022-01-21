@@ -7,11 +7,15 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
+	"log"
+
 	"github.com/Jeffail/gabs/v2"
 	"github.com/drone/envsubst"
+	"github.com/mnalsup/method/args"
 	"gopkg.in/yaml.v2"
 )
 
@@ -19,16 +23,31 @@ const (
 	AUTH_TYPE_BEARER_TOKEN = "BearerToken"
 )
 
+var fileName string
+
 type AuthenticationTrigger struct {
 	OnHttpStatus []int        `yaml:"onHttpStatus"`
 	OnJsonValue  *OnJsonValue `yaml:"onJsonValue"`
 }
 
+type BearerToken struct{}
+
+type AuthHeader struct {
+	Header       string `yaml:"header"`
+	FormatString string `yaml:"formatString"`
+}
+
+type AuthEnvironmentVariable struct {
+	Variable string `yaml:"variable"`
+}
+
 type AuthenticationHook struct {
-	Triggers          []AuthenticationTrigger `yaml:"triggers"`
-	RequestPath       string                  `yaml:"requestPath"`
-	JsonParseBodyPath string                  `yaml:"jsonParseBodyPath"`
-	AuthType          string                  `yaml:"authType"`
+	Triggers            []AuthenticationTrigger  `yaml:"triggers"`
+	RequestPath         string                   `yaml:"requestPath"`
+	JsonParseBodyPath   string                   `yaml:"jsonParseBodyPath"`
+	BearerToken         *BearerToken             `yaml:"bearerToken"`
+	AuthHeader          *AuthHeader              `yaml:"authHeader"`
+	EnvironmentVariable *AuthEnvironmentVariable `yaml:"environmentVariable"`
 }
 
 type OnJsonValue struct {
@@ -84,28 +103,28 @@ func PrintRequestResult(result *RequestResult) {
 	case strings.Contains(contentType, "text/plain"):
 		fmt.Println(string(result.Body))
 	default:
-		panic(fmt.Sprintf("Unable to decode content-type: %s", contentType))
+		fmt.Println(fmt.Sprintf("Unable to decode content-type: %s printing raw output", contentType))
+		print(string(result.Body))
 	}
 
 	fmt.Printf("Duration: %v\n", result.Elapsed)
 	fmt.Println("-----------------------------------------------")
 }
 
-func ReadRequestDefinition(fileName string) (*RequestDefinition, error) {
+func ReadRequestDefinition(fileName string, request *RequestDefinition) error {
 	file, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	subst, err := envsubst.EvalEnv(string(file))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var request *RequestDefinition
 	err = yaml.Unmarshal([]byte(subst), &request)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return request, nil
+	return nil
 
 }
 
@@ -149,9 +168,11 @@ func validateAuthenticationHook(result *RequestResult, definition *RequestDefini
  *
  */
 func runAuthenticationHook(definition *RequestDefinition) error {
+	// Must initialize or ReadRequestDefinition will fail
+	var authDefinition *RequestDefinition = &RequestDefinition{}
 	fmt.Println("Running authentication hook...")
 	authHook := definition.AuthenticationHook
-	authDefinition, err := ReadRequestDefinition(authHook.RequestPath)
+	err := ReadRequestDefinition(authHook.RequestPath, authDefinition)
 	if err != nil {
 		return err
 	}
@@ -163,35 +184,66 @@ func runAuthenticationHook(definition *RequestDefinition) error {
 	if authResult.Response.StatusCode > 399 {
 		return fmt.Errorf("failed to retrieve credentials: %v", authResult.Response.Status)
 	}
-	switch authHook.AuthType {
-	case AUTH_TYPE_BEARER_TOKEN:
-		if authHook.JsonParseBodyPath != "" && strings.Contains(authResult.Response.Header.Get("Content-Type"), "application/json") {
-			err = decorateWithBearerTokenFromJson(definition, authResult.Body, authHook.JsonParseBodyPath)
-			if err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("unknown authentication hook request parsing strategy")
+	token, err := getAuthToken(definition, authResult.Response.Header, authResult.Body)
+	if err != nil {
+		return fmt.Errorf("Unable to parse auth token from response: %s", err.Error())
+	}
+	switch {
+	case authHook.BearerToken != nil:
+		log.Println("Using BearerToken")
+		err = decorateWithBearerToken(definition, token)
+	case authHook.AuthHeader != nil:
+		log.Println("Using AuthHeader")
+		err = decorateWithAuthHeader(definition, token, authHook.AuthHeader.Header, authHook.AuthHeader.FormatString)
+	case authHook.EnvironmentVariable != nil:
+		log.Println("Using AuthEnvironmentVariable")
+		os.Setenv(authHook.EnvironmentVariable.Variable, token)
+		err := ReadRequestDefinition(args.ReadRequestFileName(), definition)
+		if err != nil {
+			return fmt.Errorf("unable to read request definition during auth environment variable hook")
 		}
 	default:
-		return fmt.Errorf("unknown authtype: %s", authHook.AuthType)
+		return fmt.Errorf("unknown auth strategy should use one of [bearerToken, authHeader]")
 	}
 	return nil
 }
 
-func decorateWithBearerTokenFromJson(definition *RequestDefinition, body []byte, jsonPath string) error {
-	if definition.Headers == nil {
-		definition.Headers = make(map[string]string)
+func getAuthToken(definition *RequestDefinition, header http.Header, body []byte) (string, error) {
+	authHook := definition.AuthenticationHook
+	switch {
+	case authHook.JsonParseBodyPath != "":
+		if strings.Contains(header.Get("Content-Type"), "application/json") {
+			return getJsonAuthToken(definition, body)
+		} else {
+			return "", fmt.Errorf("unable to parse json path from non-json auth response")
+		}
+	default:
+		return "", fmt.Errorf("unable to get auth token, invalid parse strategy use: [JsonParseBodyPath]")
 	}
+}
+
+func getJsonAuthToken(definition *RequestDefinition, body []byte) (string, error) {
 	jsonBody, err := gabs.ParseJSON(body)
 	if err != nil {
-		return fmt.Errorf("unable to unmarshal auth hook body: %v", err.Error())
+		return "", fmt.Errorf("unable to unmarshal auth hook body: %v", err.Error())
 	}
 	token, ok := jsonBody.Path(definition.AuthenticationHook.JsonParseBodyPath).Data().(string)
 	if !ok {
-		return fmt.Errorf("unable to retrieve token by path %s", definition.AuthenticationHook.JsonParseBodyPath)
+		return "", fmt.Errorf("unable to retrieve token by path %s", definition.AuthenticationHook.JsonParseBodyPath)
 	}
-	definition.Headers["Authorization"] = fmt.Sprintf("Bearer %s", token)
+	return token, nil
+}
+
+func decorateWithBearerToken(definition *RequestDefinition, token string) error {
+	return decorateWithAuthHeader(definition, token, "Authorization", "Bearer %s")
+}
+
+func decorateWithAuthHeader(definition *RequestDefinition, token string, header string, formatString string) error {
+	if definition.Headers == nil {
+		definition.Headers = make(map[string]string)
+	}
+	definition.Headers[header] = fmt.Sprintf(formatString, token)
+	fmt.Printf("added header %s: %s", header, fmt.Sprintf(formatString, token))
 	return nil
 }
 
@@ -205,7 +257,10 @@ func DoMethod(definition *RequestDefinition) (*RequestResult, error) {
 		return nil, fmt.Errorf("unable to validate authentication hook: %s", err.Error())
 	}
 	if shouldTryAuthorize {
-		runAuthenticationHook(definition)
+		err := runAuthenticationHook(definition)
+		if err != nil {
+			return nil, fmt.Errorf("failed to authenticate: %s", err.Error())
+		}
 		result, err := DoRequest(definition)
 		if err != nil {
 			PrintRequestResult(result)

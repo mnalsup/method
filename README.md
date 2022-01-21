@@ -32,7 +32,7 @@ authenticationHook:
     - 401
   requestPath: ~/method/auth/authReq.yaml
   jsonParseBodyPath: "token"
-  authType: "BearerToken"
+  bearerToken: {}
 body:
   query: "query {
     Thing(Id: 123) {
@@ -70,6 +70,40 @@ original request. To view this cached request definition:
 ```bash
 cat .<myrequest>.tmp.yaml
 ```
+
+#### Authentication Strategies
+
+Authentication strategies are an object within the authenticationHook that
+method will read from.
+
+A general formatted header might look like this, example is styled after the
+bearer token format.
+```
+authenticationHook:
+  authHeader:
+    formatString: "Bearer %s"
+    header: Authorization
+```
+
+An easy way to use a bearer token is just to use that strategy. Currently has
+no options for modifications. Adds the token to the `Authorization` header after
+Bearer.
+```
+authenticationHook:
+  bearerToken: {}
+```
+
+Environment variable substitution is the simplest way. Just configure the hook
+to set an environment variable and method will re-load the definition with the
+environment variable set.
+```
+body:
+  authToken: ${METHOD_MY_SERVICE_TOKEN}
+authenticationHook:
+  environmentVariable:
+    variable: METHOD_MY_SERVICE_TOKEN
+```
+
 
 ### Environment Substitution
 Use environment variable replacements in your file by using the ${var} syntax
