@@ -10,5 +10,8 @@ require (
 require (
 	github.com/Jeffail/gabs/v2 v2.6.1 // indirect
 	github.com/drone/envsubst v1.0.3 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/multierr v1.7.0 // indirect
+	go.uber.org/zap v1.21.0 // indirect
 	gomodules.xyz/envsubst v0.1.0 // indirect
 )

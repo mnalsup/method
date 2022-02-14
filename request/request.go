@@ -11,11 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"log"
-
 	"github.com/Jeffail/gabs/v2"
 	"github.com/drone/envsubst"
 	"github.com/mnalsup/method/args"
+	"github.com/mnalsup/method/logging"
 	"gopkg.in/yaml.v2"
 )
 
@@ -168,6 +167,7 @@ func validateAuthenticationHook(result *RequestResult, definition *RequestDefini
  *
  */
 func runAuthenticationHook(definition *RequestDefinition) error {
+	log := logging.GetLogger()
 	// Must initialize or ReadRequestDefinition will fail
 	var authDefinition *RequestDefinition = &RequestDefinition{}
 	fmt.Println("Running authentication hook...")
@@ -176,6 +176,7 @@ func runAuthenticationHook(definition *RequestDefinition) error {
 	if err != nil {
 		return err
 	}
+	log.Debugf("Making an auth request to url: %s", authDefinition.URL)
 	authResult, err := DoRequest(authDefinition)
 	if err != nil {
 		return err
@@ -190,13 +191,13 @@ func runAuthenticationHook(definition *RequestDefinition) error {
 	}
 	switch {
 	case authHook.BearerToken != nil:
-		log.Println("Using BearerToken")
+		log.Info("Using BearerToken")
 		err = decorateWithBearerToken(definition, token)
 	case authHook.AuthHeader != nil:
-		log.Println("Using AuthHeader")
+		log.Info("Using AuthHeader")
 		err = decorateWithAuthHeader(definition, token, authHook.AuthHeader.Header, authHook.AuthHeader.FormatString)
 	case authHook.EnvironmentVariable != nil:
-		log.Println("Using AuthEnvironmentVariable")
+		log.Info("Using AuthEnvironmentVariable")
 		os.Setenv(authHook.EnvironmentVariable.Variable, token)
 		err := ReadRequestDefinition(args.ReadRequestFileName(), definition)
 		if err != nil {
@@ -293,6 +294,7 @@ func convert(i interface{}) interface{} {
 
 func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 	var req *http.Request
+	log := logging.GetLogger()
 
 	client := &http.Client{}
 	reqUrl, err := url.Parse(definition.URL)
@@ -359,6 +361,9 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 
 	var result *RequestResult
 
+	log.Debugf("Making a request to url: %s", reqUrl)
+	log.Debugf("Making a request to url: %s", req.URL)
+
 	start := time.Now()
 	resp, err := client.Do(req)
 	elapsed := time.Since(start)
@@ -368,7 +373,7 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 		Body:     nil,
 	}
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("@DoRequest unable to make request: %s", err.Error())
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

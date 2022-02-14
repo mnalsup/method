@@ -6,10 +6,14 @@ import (
 
 	"github.com/mnalsup/method/args"
 	"github.com/mnalsup/method/cache"
+	"github.com/mnalsup/method/logging"
 	"github.com/mnalsup/method/request"
 )
 
 func main() {
+	log := logging.GetLogger()
+	defer log.Sync()
+	log.Debugf("Initiated logger, starting request")
 	var definition, cachedDefinition *request.RequestDefinition = &request.RequestDefinition{}, &request.RequestDefinition{}
 	fileName := args.ReadRequestFileName()
 
