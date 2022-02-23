@@ -1,0 +1,2 @@
+url: https://httpbin.org/get?hey="ho"
+method: GET

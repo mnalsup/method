@@ -79,6 +79,7 @@ func contains(elems []int, v int) bool {
 }
 
 func PrintRequestResult(result *RequestResult) {
+	log := logging.GetLogger()
 	fmt.Println("--------------------Results--------------------")
 	fmt.Printf("%s\n", result.Response.Status)
 
@@ -90,10 +91,11 @@ func PrintRequestResult(result *RequestResult) {
 	contentType := result.Response.Header.Get("Content-Type")
 	switch true {
 	case strings.Contains(contentType, "application/json"):
-		var obj map[string]interface{}
+		var obj interface{}
 		err := json.Unmarshal(result.Body, &obj)
 		if err != nil {
-			panic(err.Error())
+			log.Errorf("invalid JSON response, attempting other parsing schemes")
+			break
 		}
 		pretty, err := json.MarshalIndent(obj, "", "  ")
 		fmt.Println(string(pretty))
@@ -296,10 +298,19 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 	var req *http.Request
 	log := logging.GetLogger()
 
+	var reqUrl *url.URL
+	var err error
 	client := &http.Client{}
-	reqUrl, err := url.Parse(definition.URL)
+
+	reqUrl, err = url.Parse(definition.URL)
 	if err != nil {
 		return nil, err
+	}
+
+	req = &http.Request{
+		Method: definition.Method,
+		URL:    reqUrl,
+		Header: http.Header{},
 	}
 
 	if definition.Body != nil {
@@ -310,14 +321,7 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 			if err != nil {
 				panic(fmt.Errorf("unable to marshal definition.Body into json: %v", err))
 			}
-			req, err = http.NewRequest(
-				definition.Method,
-				reqUrl.String(),
-				bytes.NewReader(rawBody),
-			)
-			if err != nil {
-				panic(fmt.Sprintf("unable to create new reququest: %v", err))
-			}
+			req.Body = ioutil.NopCloser(bytes.NewReader(rawBody))
 		case "application/x-www-form-urlencoded":
 			body := convert(definition.Body)
 			data := url.Values{}
@@ -329,27 +333,15 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 			default:
 				panic(fmt.Sprintf("unable to convert type %v to application/x-www-form-urlencoded data", bt))
 			}
-			req, err = http.NewRequest(
-				definition.Method,
-				reqUrl.String(),
-				strings.NewReader(data.Encode()),
-			)
+			req.Body = ioutil.NopCloser(strings.NewReader(data.Encode()))
 		default:
 			panic(fmt.Sprintf("No request body parser available for %s", definition.Headers["Content-Type"]))
 		}
 	} else {
 		if definition.BodyStr == "" {
-			req, err = http.NewRequest(
-				definition.Method,
-				reqUrl.String(),
-				nil,
-			)
+			req.Body = nil
 		} else {
-			req, err = http.NewRequest(
-				definition.Method,
-				reqUrl.String(),
-				strings.NewReader(definition.BodyStr),
-			)
+			req.Body = ioutil.NopCloser(strings.NewReader(definition.BodyStr))
 		}
 	}
 	if err != nil {
@@ -361,8 +353,7 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 
 	var result *RequestResult
 
-	log.Debugf("Making a request to url: %s", reqUrl)
-	log.Debugf("Making a request to url: %s", req.URL)
+	log.Debugf("Making a request to url: %s", req.URL.String())
 
 	start := time.Now()
 	resp, err := client.Do(req)
