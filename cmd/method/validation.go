@@ -9,11 +9,8 @@ import (
 )
 
 func validateAuthenticationHook(result *request.RequestResult, authHook *authentication.AuthenticationHook) (bool, error) {
-	if authHook == nil {
+	if authHook == nil || authHook.RequestPath == "" {
 		return false, nil
-	}
-	if authHook.RequestPath == "" {
-		return false, fmt.Errorf("unable to run authentication hook for empty request")
 	}
 	for _, v := range authHook.Triggers {
 		// Check if configured

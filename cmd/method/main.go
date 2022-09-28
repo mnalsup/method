@@ -47,13 +47,13 @@ func main() {
 
 func MergeTempFileSchema(orig *RequestSchema, temp *RequestSchema) {
 	// merge any cached headers into the original request
-	if temp.Headers != nil {
-		if orig.Headers == nil {
-			orig.Headers = make(map[string]string)
+	if temp.RequestDefinition.Headers != nil {
+		if orig.RequestDefinition.Headers == nil {
+			orig.RequestDefinition.Headers = make(map[string]string)
 		}
-		for k, v := range temp.Headers {
-			if orig.Headers[k] == "" {
-				orig.Headers[k] = v
+		for k, v := range temp.RequestDefinition.Headers {
+			if orig.RequestDefinition.Headers[k] == "" {
+				orig.RequestDefinition.Headers[k] = v
 			}
 		}
 	}

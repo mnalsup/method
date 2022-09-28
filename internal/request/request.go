@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,6 +22,12 @@ type RequestDefinition struct {
 	Headers map[string]string `yaml:"headers"`
 	BodyStr string            `yaml:"bodyStr"`
 	Body    interface{}       `yaml:"body"`
+	Files   []FileDefinition  `yaml:"files"`
+}
+
+type FileDefinition struct {
+	RequestBodyPath string `yaml:"requestBodyPath"`
+	FilePath        string `yaml:"filePath"`
 }
 
 type RequestResult struct {
@@ -46,17 +55,27 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 		Header: http.Header{},
 	}
 
+	for k, v := range definition.Headers {
+		req.Header.Add(k, v)
+	}
+
 	if definition.Body != nil {
 		switch definition.Headers["Content-Type"] {
 		case "application/json":
-			body := convert(definition.Body)
+			body, err := convert(definition.Body)
+			if err != nil {
+				return nil, err
+			}
 			rawBody, err := json.Marshal(body)
 			if err != nil {
 				panic(fmt.Errorf("unable to marshal definition.Body into json: %v", err))
 			}
 			req.Body = io.NopCloser(bytes.NewReader(rawBody))
 		case "application/x-www-form-urlencoded":
-			body := convert(definition.Body)
+			body, err := convert(definition.Body)
+			if err != nil {
+				return nil, err
+			}
 			data := url.Values{}
 			switch bt := body.(type) {
 			case map[string]interface{}:
@@ -67,6 +86,41 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 				panic(fmt.Sprintf("unable to convert type %v to application/x-www-form-urlencoded data", bt))
 			}
 			req.Body = io.NopCloser(strings.NewReader(data.Encode()))
+		// Write files
+		case "multipart/form-data":
+			payloadMap, err := convertToMap(definition.Body)
+			if err != nil {
+				return nil, err
+			}
+			payload := &bytes.Buffer{}
+			writer := multipart.NewWriter(payload)
+			// Write Fields
+			for key, value := range payloadMap {
+				err = writer.WriteField(key, value.(string))
+				if err != nil {
+					return nil, err
+				}
+			}
+			// Write Files
+			for _, fileDef := range definition.Files {
+				fmt.Println(fileDef)
+				file, err := os.Open(fileDef.FilePath)
+				if err != nil {
+					return nil, err
+				}
+				fileWriter, err := writer.CreateFormFile(fileDef.RequestBodyPath, filepath.Base(fileDef.FilePath))
+				if err != nil {
+					return nil, err
+				}
+				_, err = io.Copy(fileWriter, file)
+				if err != nil {
+					return nil, err
+				}
+				file.Close()
+				writer.Close()
+			}
+			req.Body = io.NopCloser(bytes.NewReader(payload.Bytes()))
+			req.Header.Set("Content-Type", writer.FormDataContentType())
 		default:
 			panic(fmt.Sprintf("No request body parser available for %s", definition.Headers["Content-Type"]))
 		}
@@ -79,9 +133,6 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 	}
 	if err != nil {
 		return nil, err
-	}
-	for k, v := range definition.Headers {
-		req.Header.Add(k, v)
 	}
 
 	var result *RequestResult
@@ -112,18 +163,40 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 
 // Used to take in an unstructured yaml body and convert it into a nested set of
 // maps with string keys
-func convert(i interface{}) interface{} {
+func convert(i interface{}) (interface{}, error) {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		return convertToMap(x)
+	case []interface{}:
+		for i, v := range x {
+			converted, err := convert(v)
+			if err != nil {
+				return nil, err
+			}
+			x[i] = converted
+		}
+		return x, nil
+	default:
+		return i, nil
+	}
+}
+
+func convertToMap(i interface{}) (map[string]interface{}, error) {
 	switch x := i.(type) {
 	case map[interface{}]interface{}:
 		m2 := map[string]interface{}{}
 		for k, v := range x {
-			m2[k.(string)] = convert(v)
+			converted, err := convert(v)
+			if err != nil {
+				return nil, err
+			}
+			if err != nil {
+				return nil, err
+			}
+			m2[k.(string)] = converted
 		}
-		return m2
-	case []interface{}:
-		for i, v := range x {
-			x[i] = convert(v)
-		}
+		return m2, nil
+	default:
+		return nil, fmt.Errorf("unable to convert unknown to map[string]interface{}")
 	}
-	return i
 }

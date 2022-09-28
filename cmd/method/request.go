@@ -12,8 +12,8 @@ import (
 )
 
 type RequestSchema struct {
-	fileName string
-	request.RequestDefinition
+	fileName                          string
+	request.RequestDefinition         `yaml:",inline"`
 	authentication.AuthenticationHook `yaml:"authenticationHook"`
 }
 
@@ -46,8 +46,8 @@ func ReadRequestSchema(fileName string) (*RequestSchema, error) {
 }
 
 func DoMethod(schema *RequestSchema) (*request.RequestResult, error) {
-	if schema.Headers == nil {
-		schema.Headers = make(map[string]string)
+	if schema.RequestDefinition.Headers == nil {
+		schema.RequestDefinition.Headers = make(map[string]string)
 	}
 	result, err := request.DoRequest(&schema.RequestDefinition)
 	if err != nil {
@@ -63,7 +63,7 @@ func DoMethod(schema *RequestSchema) (*request.RequestResult, error) {
 			return nil, fmt.Errorf("failed to authenticate: %s", err.Error())
 		}
 		for header, value := range headers {
-			schema.Headers[header] = value
+			schema.RequestDefinition.Headers[header] = value
 		}
 		result, err := request.DoRequest(&schema.RequestDefinition)
 		if err != nil {
