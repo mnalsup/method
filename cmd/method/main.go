@@ -1,45 +1,80 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"strings"
+
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
 
 	"github.com/mnalsup/method/args"
-	"github.com/mnalsup/method/cache"
+	"github.com/mnalsup/method/internal/output"
 	"github.com/mnalsup/method/logging"
-	"github.com/mnalsup/method/request"
 )
 
 func main() {
 	log := logging.GetLogger()
 	defer log.Sync()
 	log.Debugf("Initiated logger, starting request")
-	var definition, cachedDefinition *request.RequestDefinition = &request.RequestDefinition{}, &request.RequestDefinition{}
 	fileName := args.ReadRequestFileName()
 
-	err := request.ReadRequestDefinition(fileName, definition)
+	schema, err := ReadRequestSchema(fileName)
 	if err != nil {
 		panic(err.Error())
 	}
-	err = request.ReadRequestDefinition(cache.GetTempFileName(fileName), cachedDefinition)
+	cachedSchema, err := ReadRequestSchema(GetTempFileName(fileName))
 	if err == nil {
-		cache.MergeTempFileDefinition(definition, cachedDefinition)
+		MergeTempFileSchema(schema, cachedSchema)
 	}
 
-	result, err := request.DoMethod(definition)
+	result, err := DoMethod(schema)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	out, err := yaml.Marshal(&definition)
+	out, err := yaml.Marshal(&schema)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	err = ioutil.WriteFile(cache.GetTempFileName(fileName), out, 0666)
+	err = os.WriteFile(GetTempFileName(fileName), out, 0666)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	request.PrintRequestResult(result)
+	output.PrintRequestResult(result.Body, result.Response, result.Elapsed)
+}
+
+func MergeTempFileSchema(orig *RequestSchema, temp *RequestSchema) {
+	// merge any cached headers into the original request
+	if temp.Headers != nil {
+		if orig.Headers == nil {
+			orig.Headers = make(map[string]string)
+		}
+		for k, v := range temp.Headers {
+			if orig.Headers[k] == "" {
+				orig.Headers[k] = v
+			}
+		}
+	}
+}
+
+func GetTempFileName(fileName string) string {
+	pathParts := strings.Split(fileName, "/")
+	dir := strings.Join(pathParts[:len(pathParts)-1], "/")
+	file := pathParts[len(pathParts)-1]
+
+	fileParts := strings.Split(file, ".")
+	name := strings.Join(fileParts[:len(fileParts)-1], ".")
+	ext := fileParts[len(fileParts)-1]
+	tmpFileName := fmt.Sprintf(".%s.%s.%s", name, "tmp", ext)
+
+	var tmpFilePath string
+	if dir != "" {
+		tmpFilePath = strings.Join([]string{dir, tmpFileName}, "/")
+	} else {
+		tmpFilePath = tmpFileName
+	}
+
+	return tmpFilePath
 }
