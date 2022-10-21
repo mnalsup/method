@@ -17,6 +17,7 @@ func main() {
 	defer log.Sync()
 	log.Debugf("Initiated logger, starting request")
 	fileName := args.ReadRequestFileName()
+	log.Debugf("reading: %s", fileName)
 
 	schema, err := ReadRequestSchema(fileName)
 	if err != nil {

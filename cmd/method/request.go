@@ -12,8 +12,8 @@ import (
 )
 
 type RequestSchema struct {
-	fileName string
-	request.RequestDefinition
+	fileName                          string
+	request.RequestDefinition         `yaml:",inline"`
 	authentication.AuthenticationHook `yaml:"authenticationHook"`
 }
 
