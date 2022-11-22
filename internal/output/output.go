@@ -43,6 +43,8 @@ func PrintRequestResult(
 		fmt.Println(string(body))
 	case strings.Contains(contentType, "text/plain"):
 		fmt.Println(string(body))
+	case strings.Contains(contentType, "application/octet-stream"):
+		fmt.Println(string(body))
 	default:
 		fmt.Printf("Unable to decode content-type: %s printing raw output\n", contentType)
 		fmt.Println(string(body))
