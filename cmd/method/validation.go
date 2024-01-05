@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/Jeffail/gabs/v2"
-	"github.com/mnalsup/method/internal/authentication"
-	"github.com/mnalsup/method/internal/request"
+	"github.com/mnalsup/method/authentication"
+	"github.com/mnalsup/method/request"
 )
 
 func validateAuthenticationHook(result *request.RequestResult, authHook *authentication.AuthenticationHook) (bool, error) {

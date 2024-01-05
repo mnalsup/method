@@ -5,15 +5,16 @@ import (
 	"os"
 
 	"github.com/drone/envsubst"
-	"github.com/mnalsup/method/internal/authentication"
-	"github.com/mnalsup/method/internal/output"
-	"github.com/mnalsup/method/internal/request"
+	"github.com/mnalsup/method"
+	"github.com/mnalsup/method/authentication"
+	"github.com/mnalsup/method/output"
+	"github.com/mnalsup/method/request"
 	"gopkg.in/yaml.v2"
 )
 
 type RequestSchema struct {
 	fileName                          string
-	request.RequestDefinition         `yaml:",inline"`
+	method.RequestDefinition          `yaml:",inline"`
 	authentication.AuthenticationHook `yaml:"authenticationHook"`
 }
 
@@ -42,7 +43,6 @@ func ReadRequestSchema(fileName string) (*RequestSchema, error) {
 	}
 	schema.fileName = fileName
 	return &schema, nil
-
 }
 
 func DoMethod(schema *RequestSchema) (*request.RequestResult, error) {
@@ -74,5 +74,4 @@ func DoMethod(schema *RequestSchema) (*request.RequestResult, error) {
 	}
 
 	return result, nil
-
 }

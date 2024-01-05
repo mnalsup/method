@@ -8,8 +8,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/mnalsup/method/args"
-	"github.com/mnalsup/method/internal/output"
 	"github.com/mnalsup/method/logging"
+	"github.com/mnalsup/method/output"
 )
 
 func main() {

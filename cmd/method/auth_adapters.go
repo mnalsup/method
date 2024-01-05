@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/mnalsup/method/internal/authentication"
-	"github.com/mnalsup/method/internal/output"
+	"github.com/mnalsup/method/authentication"
+	"github.com/mnalsup/method/output"
 )
 
 type AuthRequest struct{}

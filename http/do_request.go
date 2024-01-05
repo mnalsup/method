@@ -1,4 +1,4 @@
-package request
+package http
 
 import (
 	"bytes"
@@ -13,22 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mnalsup/method"
 	"github.com/mnalsup/method/logging"
 )
-
-type RequestDefinition struct {
-	Method  string            `yaml:"method"`
-	URL     string            `yaml:"url"`
-	Headers map[string]string `yaml:"headers"`
-	BodyStr string            `yaml:"bodyStr"`
-	Body    interface{}       `yaml:"body"`
-	Files   []FileDefinition  `yaml:"files"`
-}
-
-type FileDefinition struct {
-	RequestBodyPath string `yaml:"requestBodyPath"`
-	FilePath        string `yaml:"filePath"`
-}
 
 type RequestResult struct {
 	Body     []byte
@@ -36,7 +23,7 @@ type RequestResult struct {
 	Elapsed  time.Duration
 }
 
-func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
+func DoRequest(definition *method.RequestDefinition) (*RequestResult, error) {
 	var req *http.Request
 	log := logging.GetLogger()
 
