@@ -42,7 +42,7 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 
 	var reqUrl *url.URL
 	var err error
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 
 	reqUrl, err = url.Parse(definition.URL)
 	if err != nil {
@@ -141,21 +141,24 @@ func DoRequest(definition *RequestDefinition) (*RequestResult, error) {
 
 	start := time.Now()
 	resp, err := client.Do(req)
+	if err != nil {
+		return result, fmt.Errorf("@DoRequest unable to make request: %s", err.Error())
+	}
+	defer func() {
+		if resp.Body != nil {
+			resp.Body.Close()
+		}
+	}()
 	elapsed := time.Since(start)
 	result = &RequestResult{
 		Elapsed:  elapsed,
 		Response: resp,
 		Body:     nil,
 	}
-	if err != nil {
-		return result, fmt.Errorf("@DoRequest unable to make request: %s", err.Error())
-	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return result, err
 	}
-	resp.Body.Close()
-	resp.Body = nil
 	result.Body = body
 
 	return result, nil
