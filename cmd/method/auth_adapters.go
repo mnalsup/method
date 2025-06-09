@@ -1,14 +1,16 @@
 package main
 
 import (
+	internal "github.com/mnalsup/method/internal"
 	"github.com/mnalsup/method/internal/authentication"
 	"github.com/mnalsup/method/internal/output"
+	"github.com/mnalsup/method/internal/yaml"
 )
 
 type AuthRequest struct{}
 
 func (a *AuthRequest) Do(path string) (*authentication.AuthResult, error) {
-	schema, err := ReadRequestSchema(path)
+	schema, err := yaml.ReadRequestSchema(path)
 	if err != nil {
 		return nil, err
 	}
@@ -30,11 +32,11 @@ func (p *AuthPrinter) PrintRequestResult(res *authentication.AuthResult) {
 }
 
 type AuthDefinitionRefresher struct {
-	schema *RequestSchema
+	schema *internal.RequestSchema
 }
 
 func (a *AuthDefinitionRefresher) RefreshDefinition() error {
-	schema, err := ReadRequestSchema(a.schema.fileName)
+	schema, err := yaml.ReadRequestSchema(a.schema.FileName)
 	if err != nil {
 		return err
 	}

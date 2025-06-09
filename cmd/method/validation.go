@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"github.com/Jeffail/gabs/v2"
-	"github.com/mnalsup/method/internal/authentication"
+	internal "github.com/mnalsup/method/internal"
 	"github.com/mnalsup/method/internal/request"
 )
 
-func validateAuthenticationHook(result *request.RequestResult, authHook *authentication.AuthenticationHook) (bool, error) {
+func validateAuthenticationHook(result *request.RequestResult, authHook *internal.AuthenticationHook) (bool, error) {
 	if authHook == nil || authHook.RequestPath == "" {
 		return false, nil
 	}

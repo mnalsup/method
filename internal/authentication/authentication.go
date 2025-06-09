@@ -8,38 +8,9 @@ import (
 	"time"
 
 	"github.com/Jeffail/gabs"
+	internal "github.com/mnalsup/method/internal"
 	"github.com/mnalsup/method/logging"
 )
-
-type AuthHeader struct {
-	Header       string `yaml:"header"`
-	FormatString string `yaml:"formatString"`
-}
-
-type AuthEnvironmentVariable struct {
-	Variable string `yaml:"variable"`
-}
-
-type BearerToken struct{}
-
-type AuthenticationTrigger struct {
-	OnHttpStatus []int        `yaml:"onHttpStatus"`
-	OnJsonValue  *OnJsonValue `yaml:"onJsonValue"`
-}
-
-type OnJsonValue struct {
-	Path  string `yaml:"path"`
-	Value string `yaml:"value"`
-}
-
-type AuthenticationHook struct {
-	Triggers            []AuthenticationTrigger  `yaml:"triggers"`
-	RequestPath         string                   `yaml:"requestPath"`
-	JsonParseBodyPath   string                   `yaml:"jsonParseBodyPath"`
-	BearerToken         *BearerToken             `yaml:"bearerToken"`
-	AuthHeader          *AuthHeader              `yaml:"authHeader"`
-	EnvironmentVariable *AuthEnvironmentVariable `yaml:"environmentVariable"`
-}
 
 type AuthResult struct {
 	Response *http.Response
@@ -66,7 +37,7 @@ type DefinitionRefresher interface {
  * runAuthenticationHook
  *
  */
-func RunAuthenticationHook(hook *AuthenticationHook, requestDoer RequestDoer, refresher DefinitionRefresher, resultPrinter ResultPrinter) (AuthHeaders, error) {
+func RunAuthenticationHook(hook *internal.AuthenticationHook, requestDoer RequestDoer, refresher DefinitionRefresher, resultPrinter ResultPrinter) (AuthHeaders, error) {
 	log := logging.GetLogger()
 	// Must initialize or ReadRequestDefinition will fail
 	log.Debug("Running authentication hook...")
@@ -103,7 +74,7 @@ func RunAuthenticationHook(hook *AuthenticationHook, requestDoer RequestDoer, re
 	}
 }
 
-func getAuthToken(authHook *AuthenticationHook, header http.Header, body []byte) (string, error) {
+func getAuthToken(authHook *internal.AuthenticationHook, header http.Header, body []byte) (string, error) {
 	switch {
 	case authHook.JsonParseBodyPath != "":
 		if strings.Contains(header.Get("Content-Type"), "application/json") {
@@ -116,7 +87,7 @@ func getAuthToken(authHook *AuthenticationHook, header http.Header, body []byte)
 	}
 }
 
-func getJsonAuthToken(authHook *AuthenticationHook, body []byte) (string, error) {
+func getJsonAuthToken(authHook *internal.AuthenticationHook, body []byte) (string, error) {
 	jsonBody, err := gabs.ParseJSON(body)
 	if err != nil {
 		return "", fmt.Errorf("unable to unmarshal auth hook body: %v", err.Error())
