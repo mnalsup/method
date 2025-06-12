@@ -1,2 +1,9 @@
-url: ${METHOD_HTTP_BIN_ORIGIN}/json
+# Environment Variable Substitution Example
+# Demonstrates environment variable usage in URL and headers
+
 method: GET
+url: ${METHOD_HTTP_BIN_ORIGIN}/json
+headers:
+  Accept: application/json
+  X-API-Key: ${API_KEY}
+  X-Environment: ${ENVIRONMENT:-development}

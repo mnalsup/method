@@ -1,2 +1,7 @@
-url: https://httpbin.org/json
+# Basic JSON Request Example
+# Returns JSON data for testing purposes
+
 method: GET
+url: https://httpbin.org/json
+headers:
+  Accept: application/json

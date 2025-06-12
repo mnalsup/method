@@ -1,2 +1,7 @@
-url: https://httpbin.org/get?hey="ho"
+# Query String Parameters Example
+# Query parameters must be included in the URL
+
 method: GET
+url: https://httpbin.org/get?format=json&version=v1&api_key=${API_KEY}&search=hello%20world
+headers:
+  Accept: application/json

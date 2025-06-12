@@ -6,57 +6,85 @@ import (
 	"strings"
 
 	"github.com/drone/envsubst"
-	internal "github.com/mnalsup/method/internal"
+	"github.com/mnalsup/method/internal"
 	"gopkg.in/yaml.v2"
 )
 
-func ReadRequestSchema(fileName string) (*internal.RequestSchema, error) {
-	schema, err := readRequestSchema(fileName)
-	if err != nil {
-		panic(err.Error())
-	}
-	return schema, nil
+// SchemaLoader implements the internal.SchemaLoader interface
+type SchemaLoader struct{}
+
+// NewSchemaLoader creates a new schema loader
+func NewSchemaLoader() *SchemaLoader {
+	return &SchemaLoader{}
 }
 
-func ReadCachedRequestSchema(fileName string) (*internal.RequestSchema, error) {
-	schema, err := readRequestSchema(fileName)
-	if err != nil {
-		panic(err.Error())
+// LoadSchema loads a request schema from a YAML file
+func (l *SchemaLoader) LoadSchema(fileName string, cached bool) (*internal.RequestSchema, error) {
+	if cached {
+		return l.readCachedRequestSchema(fileName)
 	}
-	cachedSchema, err := readRequestSchema(getTempFileName(fileName))
-	if err == nil {
-		mergeTempFileSchema(schema, cachedSchema)
-	}
-	return schema, nil
+	return l.readRequestSchema(fileName)
 }
 
-func WriteRequestSchema(fileName string, schema *internal.RequestSchema) error {
-	out, err := yaml.Marshal(&schema)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	return os.WriteFile(getTempFileName(fileName), out, 0666)
-}
-
-func readRequestSchema(fileName string) (*internal.RequestSchema, error) {
+// readRequestSchema reads and parses a YAML request schema file
+func (l *SchemaLoader) readRequestSchema(fileName string) (*internal.RequestSchema, error) {
 	var schema internal.RequestSchema
+	
 	file, err := os.ReadFile(fileName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read file %s: %w", fileName, err)
 	}
+
+	// Substitute environment variables
 	subst, err := envsubst.EvalEnv(string(file))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to substitute environment variables: %w", err)
 	}
+
+	// Parse YAML
 	err = yaml.Unmarshal([]byte(subst), &schema)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
+
 	schema.FileName = fileName
 	return &schema, nil
 }
 
+// readCachedRequestSchema reads a schema and merges it with cached data
+func (l *SchemaLoader) readCachedRequestSchema(fileName string) (*internal.RequestSchema, error) {
+	schema, err := l.readRequestSchema(fileName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to read cached schema
+	cachedSchema, err := l.readRequestSchema(getTempFileName(fileName))
+	if err == nil {
+		mergeTempFileSchema(schema, cachedSchema)
+	}
+	// Ignore cache read errors - cache is optional
+
+	return schema, nil
+}
+
+// WriteTempFile writes a schema to a temporary cache file
+func WriteTempFile(fileName string, schema *internal.RequestSchema) error {
+	out, err := yaml.Marshal(&schema)
+	if err != nil {
+		return fmt.Errorf("failed to marshal schema: %w", err)
+	}
+
+	tempFileName := getTempFileName(fileName)
+	err = os.WriteFile(tempFileName, out, 0666)
+	if err != nil {
+		return fmt.Errorf("failed to write temp file %s: %w", tempFileName, err)
+	}
+
+	return nil
+}
+
+// mergeTempFileSchema merges cached headers into the original request
 func mergeTempFileSchema(orig *internal.RequestSchema, temp *internal.RequestSchema) {
 	// merge any cached headers into the original request
 	if temp.RequestDefinition.Headers != nil {
@@ -71,6 +99,7 @@ func mergeTempFileSchema(orig *internal.RequestSchema, temp *internal.RequestSch
 	}
 }
 
+// getTempFileName generates a temporary file name for caching
 func getTempFileName(fileName string) string {
 	pathParts := strings.Split(fileName, "/")
 	dir := strings.Join(pathParts[:len(pathParts)-1], "/")
@@ -89,4 +118,15 @@ func getTempFileName(fileName string) string {
 	}
 
 	return tmpFilePath
+}
+
+// Legacy functions for backwards compatibility
+func ReadRequestSchema(fileName string) (*internal.RequestSchema, error) {
+	loader := NewSchemaLoader()
+	return loader.LoadSchema(fileName, false)
+}
+
+func ReadCachedRequestSchema(fileName string) (*internal.RequestSchema, error) {
+	loader := NewSchemaLoader()
+	return loader.LoadSchema(fileName, true)
 }

@@ -1,11 +1,30 @@
+# Structured Body Example
+# Complex JSON body with nested structures
+
+method: POST
 url: https://httpbin.org/anything
 headers:
-  Content-Type: "application/json"
-method: POST
+  Content-Type: application/json
+
 body:
-  foo: bar
-  baz:
-    buz: bux
-  bool: true
-  num: 4
-  float: 5.4
+  user:
+    id: 12345
+    username: "john_doe"
+    email: "john.doe@example.com"
+    active: true
+  
+  items:
+    - id: 1
+      name: "Item One"
+      price: 29.99
+      quantity: 2
+    - id: 2
+      name: "Item Two"  
+      price: 15.50
+      quantity: 1
+  
+  metadata:
+    source: "web_app"
+    timestamp: ${CURRENT_TIMESTAMP}
+    
+  total_amount: 75.48
