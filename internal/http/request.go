@@ -54,7 +54,13 @@ func doRequest(definition *internal.RequestDefinition) (*internal.RequestResult,
 	var req *http.Request
 	log := logging.GetLogger()
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	// Set timeout - default to 10 seconds if not specified
+	timeout := 10 * time.Second
+	if definition.TimeoutSeconds > 0 {
+		timeout = time.Duration(definition.TimeoutSeconds) * time.Second
+	}
+
+	client := &http.Client{Timeout: timeout}
 
 	reqUrl, err := url.Parse(definition.URL)
 	if err != nil {

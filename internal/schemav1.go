@@ -16,12 +16,13 @@ type RequestSchema struct {
 
 // RequestDefinition defines the HTTP request to be made
 type RequestDefinition struct {
-	Method  string            `yaml:"method"`
-	URL     string            `yaml:"url"`
-	Headers map[string]string `yaml:"headers"`
-	BodyStr string            `yaml:"bodyStr"`
-	Body    interface{}       `yaml:"body"`
-	Files   []FileDefinition  `yaml:"files"`
+	Method            string            `yaml:"method"`
+	URL               string            `yaml:"url"`
+	Headers           map[string]string `yaml:"headers"`
+	BodyStr           string            `yaml:"bodyStr"`
+	Body              interface{}       `yaml:"body"`
+	Files             []FileDefinition  `yaml:"files"`
+	TimeoutSeconds    int               `yaml:"timeoutSeconds,omitempty"`
 }
 
 // FileDefinition specifies file uploads in multipart requests

@@ -1,0 +1,15 @@
+# Timeout Configuration Example
+# Demonstrates setting custom timeout in seconds
+
+method: GET
+url: https://httpbin.org/delay/5
+headers:
+  Accept: application/json
+  User-Agent: method-cli/1.0
+
+# Timeout in seconds - this request will complete successfully
+# as the delay is 5 seconds and timeout is 8 seconds
+timeoutSeconds: 8
+
+# Try changing timeoutSeconds to 3 to see a timeout error
+# timeoutSeconds: 3 
