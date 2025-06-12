@@ -1,2 +1,7 @@
-url: http://localhost:8080/health
+# Local Health Check Example
+# Simple health check for local development
+
 method: GET
+url: http://localhost:8080/health
+headers:
+  Accept: application/json

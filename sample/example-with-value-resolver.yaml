@@ -1,0 +1,27 @@
+# Value Resolver Example
+# Demonstrates using value resolvers to inject values from other requests
+
+method: GET
+url: https://api.example.com/v1/protected-resource
+headers:
+  Content-Type: application/json
+
+valueResolvers:
+  - name: authentication
+    requestPath: sample/auth-request.yaml
+    jsonParseBodyPath: access_token
+    target:
+      header:
+        name: Authorization
+        formatString: "Bearer %s"
+  
+  - name: api-key
+    requestPath: sample/auth-request.yaml  
+    jsonParseBodyPath: api_key
+    target:
+      environmentVariable:
+        name: API_KEY
+
+body:
+  resource_type: user_data
+  timestamp: ${CURRENT_TIMESTAMP} 

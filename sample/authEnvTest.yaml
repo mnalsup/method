@@ -1,12 +1,16 @@
-url: https://httpbin.org/bearer
+# Environment Variable Authentication Example
+# Uses value resolver to set authentication token in environment variable
+
 method: GET
+url: https://httpbin.org/bearer
+
+valueResolvers:
+  - name: auth_token
+    requestPath: sample/auth.yaml
+    jsonParseBodyPath: "slideshow.slides.0.type"
+    target:
+      environmentVariable:
+        name: METHOD_TEST_AUTH_TOKEN
+
 headers:
   Authorization: Bearer ${METHOD_TEST_AUTH_TOKEN}
-authenticationHook:
-  triggers:
-    - onHttpStatus:
-      - 401
-  requestPath: /Users/malsup/Development/go/src/github.com/mnalsup/method/sample/auth.yaml 
-  jsonParseBodyPath: "slideshow.slides.0.type"
-  environmentVariable:
-    variable: METHOD_TEST_AUTH_TOKEN

@@ -1,0 +1,15 @@
+# Authentication Request Example
+# OAuth2 password-based authentication request
+# Environment variables: USERNAME, PASSWORD
+
+method: POST
+url: https://auth.example.com/oauth/token
+headers:
+  Content-Type: application/json
+  Accept: application/json
+
+body:
+  grant_type: password
+  username: ${USERNAME}
+  password: ${PASSWORD}
+  scope: read write 
